@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>數學拔河大賽</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif;
+    background: #1a1a2e;
+    color: #fff;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Overlay screens ── */
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 100;
+    gap: 24px;
+  }
+  .overlay h1 { font-size: 3rem; text-align: center; }
+  .overlay p  { font-size: 1.2rem; color: #aaa; text-align: center; max-width: 480px; }
+  .overlay .winner-text { font-size: 2rem; color: #ffd700; }
+  .btn {
+    padding: 14px 40px;
+    font-size: 1.3rem;
+    border: none; border-radius: 12px;
+    cursor: pointer;
+    background: linear-gradient(135deg, #f093fb, #f5576c);
+    color: #fff;
+    font-weight: bold;
+    transition: transform .15s, box-shadow .15s;
+    box-shadow: 0 4px 20px rgba(240,93,251,.4);
+  }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(240,93,251,.5); }
+
+  /* ── Main layout ── */
+  #game {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .player {
+    flex: 0 0 38%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 12px 12px;
+    gap: 10px;
+  }
+  #left  { background: linear-gradient(160deg, #0f3460 0%, #16213e 100%); }
+  #right { background: linear-gradient(160deg, #3d0f60 0%, #1e163e 100%); }
+
+  .player-name {
+    font-size: 1.1rem;
+    font-weight: bold;
+    letter-spacing: .05em;
+    opacity: .8;
+  }
+  .score-display {
+    font-size: 2.2rem;
+    font-weight: bold;
+  }
+  #left  .score-display { color: #4fc3f7; }
+  #right .score-display { color: #ce93d8; }
+
+  .question-box {
+    background: rgba(255,255,255,.07);
+    border-radius: 16px;
+    padding: 14px 20px;
+    text-align: center;
+    width: 100%;
+  }
+  .question-text {
+    font-size: 2rem;
+    font-weight: bold;
+    letter-spacing: .05em;
+  }
+
+  /* Timer bar */
+  .timer-bar-wrap {
+    width: 100%;
+    height: 10px;
+    background: rgba(255,255,255,.1);
+    border-radius: 5px;
+    overflow: hidden;
+  }
+  .timer-bar {
+    height: 100%;
+    border-radius: 5px;
+    transition: width .25s linear, background-color .5s;
+    width: 100%;
+  }
+  #left  .timer-bar { background: #4fc3f7; }
+  #right .timer-bar { background: #ce93d8; }
+
+  .points-left {
+    font-size: .9rem;
+    opacity: .7;
+  }
+
+  /* Input display */
+  .input-display {
+    font-size: 2rem;
+    font-weight: bold;
+    letter-spacing: .1em;
+    min-height: 2.5rem;
+    color: #fff;
+  }
+  .error-msg {
+    color: #ff5252;
+    font-size: .95rem;
+    font-weight: bold;
+    min-height: 1.2rem;
+  }
+
+  /* Numpad */
+  .numpad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    width: 100%;
+    max-width: 260px;
+  }
+  .numpad button {
+    aspect-ratio: 1;
+    border: none;
+    border-radius: 12px;
+    font-size: 1.4rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform .1s, opacity .1s;
+  }
+  .numpad button:active { transform: scale(.93); }
+  .numpad button:disabled { opacity: .35; cursor: default; }
+
+  #left  .numpad button { background: #1e4976; color: #e3f2fd; }
+  #right .numpad button { background: #4a1e76; color: #f3e5f5; }
+
+  .numpad .btn-del  { background: #b71c1c !important; color: #fff !important; font-size: 1rem !important; }
+  .numpad .btn-ok   { background: #1b5e20 !important; color: #fff !important; font-size: 1rem !important; }
+  .numpad .btn-zero { grid-column: 1 / 3; aspect-ratio: unset; padding: 12px 0; }
+
+  /* ── Middle tug-of-war ── */
+  #middle {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .tug-wrap {
+    width: 100%;
+    position: relative;
+    height: 80px;
+    display: flex;
+    align-items: center;
+  }
+
+  /* Rope */
+  .rope {
+    position: absolute;
+    left: 0; right: 0;
+    height: 8px;
+    background: repeating-linear-gradient(
+      90deg,
+      #c8a96e 0px, #c8a96e 8px,
+      #a07840 8px, #a07840 16px
+    );
+    border-radius: 4px;
+    top: 50%; transform: translateY(-50%);
+  }
+
+  /* Flag marker */
+  .flag {
+    position: absolute;
+    top: 50%; transform: translate(-50%, -50%);
+    font-size: 2rem;
+    transition: left .5s cubic-bezier(.25,.46,.45,.94);
+    left: 50%;
+    z-index: 2;
+  }
+
+  /* Team emojis on sides */
+  .team-emoji {
+    font-size: 2.2rem;
+    position: absolute;
+    top: 50%; transform: translateY(-50%);
+    transition: left .5s cubic-bezier(.25,.46,.45,.94),
+                right .5s cubic-bezier(.25,.46,.45,.94);
+  }
+  .team-emoji.left  { left: 2px; }
+  .team-emoji.right { right: 2px; }
+
+  .tug-score-label {
+    font-size: .8rem;
+    opacity: .5;
+    letter-spacing: .08em;
+  }
+  .win-threshold-note {
+    font-size: .8rem;
+    color: #ffd700;
+    opacity: .7;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 600px) {
+    .question-text { font-size: 1.4rem; }
+    .numpad button  { font-size: 1.1rem; }
+    .score-display  { font-size: 1.6rem; }
+    #middle { display: none; }
+    .player { flex: 0 0 50%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Start overlay -->
+<div id="start-screen" class="overlay">
+  <h1>🧮 數學拔河</h1>
+  <p>兩人各控制一側鍵盤，快速答對題目搶分！<br>領先 <strong>10 分</strong>即獲勝。</p>
+  <p style="font-size:.95rem;color:#888">計分：每題最高 5 分，每 5 秒 −1 分，最低 1 分</p>
+  <button class="btn" onclick="startGame()">開始遊戲</button>
+</div>
+
+<!-- Win overlay -->
+<div id="win-screen" class="overlay" style="display:none">
+  <div class="winner-text" id="win-text"></div>
+  <div id="win-scores" style="font-size:1.1rem;color:#ccc"></div>
+  <button class="btn" onclick="resetGame()">再玩一次</button>
+</div>
+
+<!-- Game area -->
+<div id="game">
+
+  <!-- LEFT player -->
+  <div class="player" id="left">
+    <div class="player-name">🔵 玩家一</div>
+    <div class="score-display" id="score-l">0 分</div>
+    <div class="question-box">
+      <div class="question-text" id="q-l">—</div>
+    </div>
+    <div class="timer-bar-wrap"><div class="timer-bar" id="bar-l"></div></div>
+    <div class="points-left" id="pts-l">可得 5 分</div>
+    <div class="input-display" id="input-l">_</div>
+    <div class="error-msg" id="err-l"></div>
+    <div class="numpad" id="pad-l"></div>
+  </div>
+
+  <!-- MIDDLE tug -->
+  <div id="middle">
+    <div class="tug-score-label">🏆 分數差距</div>
+    <div class="tug-wrap">
+      <div class="rope"></div>
+      <span class="team-emoji left">💪</span>
+      <div class="flag" id="flag">🚩</div>
+      <span class="team-emoji right">💪</span>
+    </div>
+    <div class="win-threshold-note">領先 10 分獲勝</div>
+  </div>
+
+  <!-- RIGHT player -->
+  <div class="player" id="right">
+    <div class="player-name">🟣 玩家二</div>
+    <div class="score-display" id="score-r">0 分</div>
+    <div class="question-box">
+      <div class="question-text" id="q-r">—</div>
+    </div>
+    <div class="timer-bar-wrap"><div class="timer-bar" id="bar-r"></div></div>
+    <div class="points-left" id="pts-r">可得 5 分</div>
+    <div class="input-display" id="input-r">_</div>
+    <div class="error-msg" id="err-r"></div>
+    <div class="numpad" id="pad-r"></div>
+  </div>
+
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+const MAX_SCORE_DIFF = 10;  // win threshold
+
+const state = {
+  l: { score: 0, answer: 0, startTime: 0, currentPts: 5, input: '', disabled: false },
+  r: { score: 0, answer: 0, startTime: 0, currentPts: 5, input: '', disabled: false },
+};
+
+let gameRunning = false;
+let timerRaf = null;
+
+// ── Question generator ──────────────────────────────────────────────────────
+function rand(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+
+function genQuestion() {
+  const ops = ['+', '-', '×', '÷'];
+  const op = ops[rand(0, 3)];
+  let a, b, ans;
+  if (op === '+') { a = rand(1, 20); b = rand(1, 20); ans = a + b; }
+  else if (op === '-') { a = rand(2, 20); b = rand(1, a); ans = a - b; }
+  else if (op === '×') { a = rand(2, 9);  b = rand(2, 9); ans = a * b; }
+  else { ans = rand(1, 9); b = rand(2, 9); a = ans * b; }  // division
+  return { text: `${a} ${op} ${b} = ?`, answer: ans };
+}
+
+// ── Build numpads ───────────────────────────────────────────────────────────
+function buildPad(side) {
+  const pad = document.getElementById(`pad-${side}`);
+  pad.innerHTML = '';
+  const nums = [7,8,9,4,5,6,1,2,3];
+  nums.forEach(n => {
+    const btn = document.createElement('button');
+    btn.textContent = n;
+    btn.onclick = () => pressKey(side, String(n));
+    pad.appendChild(btn);
+  });
+  // zero (spans 2 cols)
+  const z = document.createElement('button');
+  z.textContent = '0'; z.className = 'btn-zero';
+  z.onclick = () => pressKey(side, '0');
+  pad.appendChild(z);
+  // del
+  const del = document.createElement('button');
+  del.textContent = '⌫'; del.className = 'btn-del';
+  del.onclick = () => pressKey(side, 'del');
+  pad.appendChild(del);
+  // ok
+  const ok = document.createElement('button');
+  ok.textContent = '✓ 送出'; ok.className = 'btn-ok';
+  ok.style.gridColumn = '1 / 4';
+  ok.style.aspectRatio = 'unset';
+  ok.style.padding = '10px 0';
+  ok.onclick = () => pressKey(side, 'ok');
+  pad.appendChild(ok);
+}
+
+function setPadDisabled(side, disabled) {
+  document.querySelectorAll(`#pad-${side} button`).forEach(b => b.disabled = disabled);
+}
+
+// ── Key press logic ─────────────────────────────────────────────────────────
+function pressKey(side, key) {
+  if (!gameRunning) return;
+  const s = state[side];
+  if (s.disabled) return;
+
+  if (key === 'del') {
+    s.input = s.input.slice(0, -1);
+  } else if (key === 'ok') {
+    submitAnswer(side);
+    return;
+  } else {
+    if (s.input.length >= 4) return;  // max 4 digits
+    s.input += key;
+  }
+  updateInputDisplay(side);
+}
+
+function updateInputDisplay(side) {
+  const el = document.getElementById(`input-${side}`);
+  el.textContent = state[side].input || '_';
+}
+
+function submitAnswer(side) {
+  const s = state[side];
+  const val = parseInt(s.input, 10);
+  if (isNaN(val)) {
+    showError(side, '請先輸入數字！');
+    return;
+  }
+  if (val === s.answer) {
+    const pts = s.currentPts;
+    s.score += pts;
+    s.input = '';
+    document.getElementById(`err-${side}`).textContent = '';
+    updateInputDisplay(side);
+    updateScore(side);
+    if (checkWin()) return;
+    newQuestion(side);
+  } else {
+    s.input = '';
+    updateInputDisplay(side);
+    showError(side, `❌ 答錯了！再試一次`);
+  }
+}
+
+function showError(side, msg) {
+  const el = document.getElementById(`err-${side}`);
+  el.textContent = msg;
+  el.style.animation = 'none';
+  void el.offsetWidth;
+  el.style.animation = '';
+}
+
+// ── Score & tug ─────────────────────────────────────────────────────────────
+function updateScore(side) {
+  const s = state[side];
+  document.getElementById(`score-${side}`).textContent = `${s.score} 分`;
+  updateTug();
+}
+
+function updateTug() {
+  const diff = state.l.score - state.r.score;  // positive = left leads
+  // flag moves: center=50%, range ±35%
+  const clampedDiff = Math.max(-MAX_SCORE_DIFF, Math.min(MAX_SCORE_DIFF, diff));
+  const pct = 50 + (clampedDiff / MAX_SCORE_DIFF) * 35;
+  document.getElementById('flag').style.left = `${pct}%`;
+}
+
+function checkWin() {
+  const diff = state.l.score - state.r.score;
+  if (diff >= MAX_SCORE_DIFF) { endGame('l'); return true; }
+  if (diff <= -MAX_SCORE_DIFF) { endGame('r'); return true; }
+  return false;
+}
+
+function endGame(winner) {
+  gameRunning = false;
+  cancelAnimationFrame(timerRaf);
+  setPadDisabled('l', true);
+  setPadDisabled('r', true);
+
+  const names = { l: '🔵 玩家一', r: '🟣 玩家二' };
+  document.getElementById('win-text').textContent = `${names[winner]} 獲勝！🎉`;
+  document.getElementById('win-scores').textContent =
+    `玩家一：${state.l.score} 分　 玩家二：${state.r.score} 分`;
+  document.getElementById('win-screen').style.display = 'flex';
+}
+
+// ── Question management ──────────────────────────────────────────────────────
+function newQuestion(side) {
+  const s = state[side];
+  const q = genQuestion();
+  s.answer    = q.answer;
+  s.startTime = performance.now();
+  s.currentPts = 5;
+  s.input = '';
+  document.getElementById(`q-${side}`).textContent = q.text;
+  document.getElementById(`pts-${side}`).textContent = '可得 5 分';
+  document.getElementById(`bar-${side}`).style.width = '100%';
+  updateInputDisplay(side);
+}
+
+// ── Timer loop ───────────────────────────────────────────────────────────────
+const MAX_TIME_MS = 20000;  // 20 s → 1 pt
+
+function timerLoop(ts) {
+  if (!gameRunning) return;
+  ['l', 'r'].forEach(side => {
+    const s = state[side];
+    const elapsed = ts - s.startTime;
+    const newPts = Math.max(1, 5 - Math.floor(elapsed / 5000));
+    s.currentPts = newPts;
+    document.getElementById(`pts-${side}`).textContent = `可得 ${newPts} 分`;
+
+    // bar: shrinks over 20 s
+    const pct = Math.max(0, 100 - (elapsed / MAX_TIME_MS) * 100);
+    const bar = document.getElementById(`bar-${side}`);
+    bar.style.width = `${pct}%`;
+    // colour shift
+    if (pct > 60)       bar.style.background = side === 'l' ? '#4fc3f7' : '#ce93d8';
+    else if (pct > 30)  bar.style.background = '#ffa726';
+    else                bar.style.background = '#ef5350';
+  });
+  timerRaf = requestAnimationFrame(timerLoop);
+}
+
+// ── Game control ─────────────────────────────────────────────────────────────
+function startGame() {
+  document.getElementById('start-screen').style.display = 'none';
+  gameRunning = true;
+  newQuestion('l');
+  newQuestion('r');
+  updateScore('l');
+  updateScore('r');
+  setPadDisabled('l', false);
+  setPadDisabled('r', false);
+  timerRaf = requestAnimationFrame(timerLoop);
+}
+
+function resetGame() {
+  cancelAnimationFrame(timerRaf);
+  state.l.score = 0; state.r.score = 0;
+  state.l.input = ''; state.r.input = '';
+  document.getElementById('err-l').textContent = '';
+  document.getElementById('err-r').textContent = '';
+  updateScore('l'); updateScore('r');
+  document.getElementById('win-screen').style.display = 'none';
+  document.getElementById('flag').style.left = '50%';
+  startGame();
+}
+
+// ── Keyboard support ─────────────────────────────────────────────────────────
+// Left player: 0-9 on numpad, Enter=submit, Backspace=del
+// Right player: uses mouse/touch only (two humans on same device)
+document.addEventListener('keydown', e => {
+  if (!gameRunning) return;
+  if (e.key >= '0' && e.key <= '9') pressKey('l', e.key);
+  else if (e.key === 'Enter')     pressKey('l', 'ok');
+  else if (e.key === 'Backspace') { e.preventDefault(); pressKey('l', 'del'); }
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+buildPad('l');
+buildPad('r');
+updateTug();
+</script>
+</body>
+</html>
