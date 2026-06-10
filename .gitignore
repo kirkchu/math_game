@@ -1,0 +1,18 @@
+# macOS 系統檔案
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+$RECYCLE.BIN/
+.TemporaryItems
+
+# 其他常見忽略檔案
+node_modules/
+.env
+.env.local
+*.log
+*.swp
+*.swo
+*~
